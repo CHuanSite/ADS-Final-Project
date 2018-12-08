@@ -112,7 +112,7 @@ dat %>%
 Study the geographical information
 ```{r}
 library(usmap)
-## 
+## The revenue corresponds to the different states in USA
 map.revenue <- dat %>% 
   select(region) %>%
   group_by(region) %>%
