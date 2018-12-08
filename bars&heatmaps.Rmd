@@ -10,7 +10,7 @@ output: html_document
 library(ggplot2)
 library(tidyverse)
 library(reshape)
-train = read.csv('/Users/alice/Documents/yr2term1/data science/project/Data/train_US_1year_nojson.csv')
+train = read.csv('/Users/chenhuan/Downloads/Data-3/train_US_1year_nojson.csv')
 train$totalTransactionRevenue[which(is.na(train$totalTransactionRevenue))] = 0
 miss = data.frame(variable = colnames(train), total = sapply(1:ncol(train), function(x) length(which(is.na(train[,x])))), percent = sapply(1:ncol(train), function(x) length(which(is.na(train[,x]))))/nrow(train))
 miss
