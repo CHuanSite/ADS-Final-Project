@@ -1,0 +1,163 @@
+---
+title: "project"
+author: "LUQIN GAN"
+date: "12/3/2018"
+output: html_document
+---
+
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(reshape)
+train = read.csv('/Users/alice/Documents/yr2term1/data science/project/Data/train_US_1year_nojson.csv')
+train$totalTransactionRevenue[which(is.na(train$totalTransactionRevenue))] = 0
+miss = data.frame(variable = colnames(train), total = sapply(1:ncol(train), function(x) length(which(is.na(train[,x])))), percent = sapply(1:ncol(train), function(x) length(which(is.na(train[,x]))))/nrow(train))
+miss
+```
+
+```{r}
+#train = train[,which(miss$percent<0.8)]
+
+cg = data.frame(table(train$channelGrouping))
+ggplot(cg,aes(x = reorder(Var1,-Freq) , y =Freq))+
+  geom_bar(stat="identity",fill="steelblue")+
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
+    labs(title = "Channel Grouping", x = 'Channel Grouping', y = "Number")
+```
+
+```{r}
+train_brow = train[which(train$browser%in%names(sort(table(train$browser),decreasing=TRUE)[1:10])),]
+brow = data.frame(table(train_brow$browser))
+brow = brow[-which(brow$Freq==0),]
+
+ggplot(brow,aes(x = reorder(Var1,-Freq) , y =Freq))+
+  geom_bar(stat="identity",fill="#FF6666")+
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
+    labs(title = "Top 10 Browser", x = 'browser', y = "Number")
+
+dc = data.frame(table(train$deviceCategory))
+ggplot(dc,aes(x = reorder(Var1,-Freq) , y =Freq))+
+  geom_bar(stat="identity",fill="#FF6666")+
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
+    labs(title = "Device Category", x = 'Device Category', y = "Number")
+
+IM = data.frame(table(train$isMobile))
+ggplot(IM,aes(x = reorder(Var1,-Freq) , y =Freq))+
+  geom_bar(stat="identity",fill="#FF6666")+
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
+    labs(title = "isMobile", x = 'isMobile', y = "Number")
+
+operatingSystem = data.frame(table(train$operatingSystem))
+ggplot(operatingSystem,aes(x = reorder(Var1,-Freq) , y =Freq))+
+  geom_bar(stat="identity",fill="#FF6666")+
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
+    labs(title = "Operating System", x = 'Operating System', y = "Number")
+
+
+
+train_nd = train[which(train$networkDomain%in%names(sort(table(train$networkDomain),decreasing=TRUE)[1:10])),]
+networkDomain = data.frame(table(train_nd$networkDomain))
+networkDomain = networkDomain[-which(networkDomain$Freq==0),]
+
+ggplot(networkDomain,aes(x = reorder(Var1,-Freq) , y =Freq))+
+  geom_bar(stat="identity",fill="#FF6666")+
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
+    labs(title = "Top 10 Network Domain", x = 'Network Domain', y = "Number")
+```
+
+'The majority of the visits are using devices with Windows OS, Chrome browser, from a Desktop. From the mobile devices, majority are phones.
+
+The most used OS are: Windows, Macintosh, Android, iOS and Linux.
+The most used browsers are Chrome, Safari, Firefox, Internet Explorer and Edge.
+Let's check few of these features correlation.'
+
+```{r}
+ob = table(train_brow$browser,train_brow$operatingSystem)
+ob = ob[,which(colSums(ob)!=0)]
+ob = ob[which(rowSums(ob)!=0),]
+ob = melt(ob)
+
+ggplot(ob, aes(Var.1,Var.2)) + geom_tile(aes(fill = value), colour = "white")+
+  scale_fill_gradient(low = "white",high = "steelblue")+
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
+    geom_text(aes(label = round(value, 1))) +
+    labs(title = "Browser vs. OperatingSystem ", x = 'Browser', y = "OperatingSystem")
+
+```
+
+
+
+```{r}
+dd = table(train_brow$browser,train_brow$deviceCategory)
+dd = dd[,which(colSums(dd)!=0)]
+dd = dd[which(rowSums(dd)!=0),]
+dd = melt(dd)
+
+ggplot(dd, aes(Var.2,Var.1)) + geom_tile(aes(fill = value), colour = "white")+
+  scale_fill_gradient(low = "white",high = "steelblue")+
+      geom_text(aes(label = round(value, 1))) +
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
+    labs(title = "Browser vs. Device Category ", x = 'Device Category', y = "Browser")
+
+```
+
+```{r}
+mc = table(train_brow$isMobile,train_brow$deviceCategory)
+mc = mc[,which(colSums(mc)!=0)]
+mc = mc[which(rowSums(mc)!=0),]
+mc = melt(mc)
+
+ggplot(mc, aes(Var.1,Var.2)) + geom_tile(aes(fill = value), colour = "white")+
+  scale_fill_gradient(low = "white",high = "steelblue")+
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
+      geom_text(aes(label = round(value, 1))) +
+    labs(title = "Device is Mobile vs. Device Category ", x = 'Device is Mobile ', y = "Device Category")
+```
+
+geographical/network attributes
+
+```{r}
+
+city = data.frame(table(train$city))
+city = city[city$Freq>mean(city$Freq),]
+
+ggplot(city,aes(x = reorder(Var1,-Freq) , y =Freq))+
+  geom_bar(stat="identity",fill="steelblue")+
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, size=10))+
+    labs(title = "City", x = 'City', y = "Number")
+```
+
+```{r}
+
+reg = data.frame(table(train$region))
+reg = reg[reg$Freq>mean(reg$Freq),]
+
+ggplot(reg,aes(x = reorder(Var1,-Freq) , y =Freq))+
+  geom_bar(stat="identity",fill="steelblue")+
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, size=10))+
+    labs(title = "Region", x = 'Region', y = "Number")
+```
+
+
+```{r}
+metro = data.frame(table(train$metro))
+metro = metro[metro$Freq>mean(metro$Freq),]
+ggplot(metro,aes(x = reorder(Var1,-Freq) , y =Freq))+
+  geom_bar(stat="identity",fill="steelblue")+
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, size=10))+
+    labs(title = "Metro", x = 'metro', y = "Number")
+```
+
