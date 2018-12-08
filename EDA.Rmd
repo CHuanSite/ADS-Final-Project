@@ -12,6 +12,7 @@ RStudio, the developer of free and open tools for R and enterprise-ready product
 
 In this competition, you’re challenged to analyze a Google Merchandise Store (also known as GStore, where Google swag is sold) customer dataset to predict revenue per customer. Hopefully, the outcome will be more actionable operational changes and a better use of marketing budgets for those companies who choose to use data analysis on top of GA data
 
+# Exploratory Data Analysis(EDA)
 First we read the data into R
 ```{r}
 library(tidyverse)
@@ -111,17 +112,27 @@ dat %>%
 Study the geographical information
 ```{r}
 library(usmap)
-
-dat %>% 
+## 
+map.revenue <- dat %>% 
   select(region) %>%
   group_by(region) %>%
-  summarise(n = n())
-
+  summarise(n = log(n())) %>% 
+  rename(full = region)
   
+state.google <- statepop %>% 
+  select(fips, abbr, full) %>%
+  left_join(map.revenue, by = "full")
 
-plot_usmap(data = statepop, values = "pop_2015", lines = "red") + 
-  scale_fill_continuous(name = "Population (2015)", label = scales::comma) + 
-  theme(legend.position = "right")
-
+state.google$n[is.na(state.google$n)] = 0
+  
+## Plot the map
+plot_usmap(data = state.google, values = "n", lines = "red") + 
+scale_fill_continuous(
+    low = "white", high = "red", name = "log(totalTransactionRevenue)", label = scales::comma
+  ) + theme(legend.position = "right")
 
 ```
+
+
+
+
