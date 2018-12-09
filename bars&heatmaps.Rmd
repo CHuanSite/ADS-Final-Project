@@ -5,78 +5,151 @@ date: "12/3/2018"
 output: html_document
 ---
 
+## Data exploration
 
 ```{r}
+
 library(ggplot2)
 library(tidyverse)
 library(reshape)
-train = read.csv('/Users/chenhuan/Downloads/Data-3/train_US_1year_nojson.csv')
-train$totalTransactionRevenue[which(is.na(train$totalTransactionRevenue))] = 0
-miss = data.frame(variable = colnames(train), total = sapply(1:ncol(train), function(x) length(which(is.na(train[,x])))), percent = sapply(1:ncol(train), function(x) length(which(is.na(train[,x]))))/nrow(train))
-miss
+library(knitr)
+library(kableExtra)
+library(plotly)
+train = read.csv('/Users/alice/Documents/yr2term1/data science/project/Data/train_US_1year_nojson.csv')
 ```
+
+#### Check features with missing values 
+```{r}
+train$totalTransactionRevenue[which(is.na(train$totalTransactionRevenue))] = 0
+miss = data.frame(Features = colnames(train), Number = sapply(1:ncol(train), function(x) length(which(is.na(train[,x])))), Percent = round(sapply(1:ncol(train), function(x) length(which(is.na(train[,x]))))/nrow(train),2))
+
+miss %>%
+  mutate_if(is.numeric, function(x) {
+    cell_spec(x, bold = T, 
+              color = spec_color(x, end = 0.9),
+              font_size = spec_font_size(x))
+  }) %>%
+  kable(escape = F, align = "c",caption = "Missing data summary") %>%
+  kable_styling(c("striped", "condensed"), full_width = F)
+
+dat = train[,which(miss$Percent<0.8)]
+```
+
+We droped the features which have greater than 80% missing values. 
+
+#### Channel Grouping 
+
+Here we explore the marketing channel grouping distribution. 
 
 ```{r}
-#train = train[,which(miss$percent<0.8)]
 
 cg = data.frame(table(train$channelGrouping))
-ggplot(cg,aes(x = reorder(Var1,-Freq) , y =Freq))+
-  geom_bar(stat="identity",fill="steelblue")+
-  theme(plot.title = element_text(hjust = 0.5),
-    axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
-    labs(title = "Channel Grouping", x = 'Channel Grouping', y = "Number")
-```
+percent <- function(x, digits = 2, format = "f", ...) {
+  paste0(formatC(100 * x, format = format, digits = digits, ...), "%")
+}
+cg  = cg%>% 
+  mutate(percent = percent(Freq/sum(Freq)))
 
+# ggplot(cg,aes(x = reorder(Var1,-Freq) , y =Freq))+
+#   geom_bar(stat="identity",fill="steelblue")+
+#       geom_text(aes(label=percent ), vjust=0) +
+#   theme(plot.title = element_text(hjust = 0.5),
+#     axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
+#     labs(title = "Channel Grouping", x = 'Channel Grouping', y = "Number")
+plot_ly(cg,x=~reorder(Var1,-Freq),y=~Freq,type = 'bar',text = cg$percent)%>%
+  layout(title = "Channel Grouping",
+         xaxis = list(title = "Channel Grouping"),
+        yaxis = list(title = "Number"))
+```
+Over 40% of the visitors used organic search. 
+
+Here we explore the browser distribution. 
 ```{r}
 train_brow = train[which(train$browser%in%names(sort(table(train$browser),decreasing=TRUE)[1:10])),]
 brow = data.frame(table(train_brow$browser))
 brow = brow[-which(brow$Freq==0),]
+brow  = brow%>% 
+  mutate(percent = percent(Freq/sum(Freq)))
 
 ggplot(brow,aes(x = reorder(Var1,-Freq) , y =Freq))+
   geom_bar(stat="identity",fill="#FF6666")+
   theme(plot.title = element_text(hjust = 0.5),
     axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
+        geom_text(aes(label=percent ), vjust=0) +
     labs(title = "Top 10 Browser", x = 'browser', y = "Number")
+```
+Most of the visitors used chrome browser. The most used browsers are chrome, safari, firefox. 
 
+Here we explore the device category distribution. 
+
+```{r}
 dc = data.frame(table(train$deviceCategory))
+dc  = dc%>% 
+  mutate(percent = percent(Freq/sum(Freq)))
+
 ggplot(dc,aes(x = reorder(Var1,-Freq) , y =Freq))+
   geom_bar(stat="identity",fill="#FF6666")+
   theme(plot.title = element_text(hjust = 0.5),
     axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
+          geom_text(aes(label=percent ), vjust=0) +
     labs(title = "Device Category", x = 'Device Category', y = "Number")
+```
 
+The most used device is desktop. 
+
+```{r}
 IM = data.frame(table(train$isMobile))
+IM  = IM%>% 
+  mutate(percent = percent(Freq/sum(Freq)))
+
 ggplot(IM,aes(x = reorder(Var1,-Freq) , y =Freq))+
   geom_bar(stat="identity",fill="#FF6666")+
   theme(plot.title = element_text(hjust = 0.5),
     axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
+    geom_text(aes(label=percent ), vjust=0) +
     labs(title = "isMobile", x = 'isMobile', y = "Number")
+```
 
-operatingSystem = data.frame(table(train$operatingSystem))
-ggplot(operatingSystem,aes(x = reorder(Var1,-Freq) , y =Freq))+
+
+Here we explore the device operating system. 
+
+```{r}
+train_os = train[which(train$operatingSystem%in%names(sort(table(train$operatingSystem),decreasing=TRUE)[1:10])),]
+os = data.frame(table(train_os$operatingSystem))
+os = os[-which(os$Freq==0),]
+os  = os%>% 
+  mutate(percent = percent(Freq/sum(Freq)))
+
+ggplot(os,aes(x = reorder(Var1,-Freq) , y =Freq))+
   geom_bar(stat="identity",fill="#FF6666")+
   theme(plot.title = element_text(hjust = 0.5),
     axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
-    labs(title = "Operating System", x = 'Operating System', y = "Number")
+      geom_text(aes(label=percent), vjust=0) +
+    labs(title = "Top 10 Operating System", x = 'Operating System', y = "Number")
+```
+Most of the visitors used Mac. The most used operating systems are Mac, Windows, IOS, Android.  
 
 
+Here we explore the device network domain. 
 
+```{r}
 train_nd = train[which(train$networkDomain%in%names(sort(table(train$networkDomain),decreasing=TRUE)[1:10])),]
 networkDomain = data.frame(table(train_nd$networkDomain))
 networkDomain = networkDomain[-which(networkDomain$Freq==0),]
+networkDomain  = networkDomain%>% 
+  mutate(percent = percent(Freq/sum(Freq)))
 
 ggplot(networkDomain,aes(x = reorder(Var1,-Freq) , y =Freq))+
   geom_bar(stat="identity",fill="#FF6666")+
   theme(plot.title = element_text(hjust = 0.5),
     axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
+        geom_text(aes(label=percent), vjust=0) +
     labs(title = "Top 10 Network Domain", x = 'Network Domain', y = "Number")
 ```
+The most used network domains are comcast, rr, verizon. 
 
-'The majority of the visits are using devices with Windows OS, Chrome browser, from a Desktop. From the mobile devices, majority are phones.
 
-The most used OS are: Windows, Macintosh, Android, iOS and Linux.
-The most used browsers are Chrome, Safari, Firefox, Internet Explorer and Edge.
-Let's check few of these features correlation.'
+Now we check these features correlation.
 
 ```{r}
 ob = table(train_brow$browser,train_brow$operatingSystem)
@@ -90,9 +163,9 @@ ggplot(ob, aes(Var.1,Var.2)) + geom_tile(aes(fill = value), colour = "white")+
     axis.text.x = element_text(angle = 45, hjust = 1, size=13))+
     geom_text(aes(label = round(value, 1))) +
     labs(title = "Browser vs. OperatingSystem ", x = 'Browser', y = "OperatingSystem")
-
 ```
 
+The most frequent combiniation of the visits is using Chrome browser from Mac. 
 
 
 ```{r}
@@ -110,6 +183,8 @@ ggplot(dd, aes(Var.2,Var.1)) + geom_tile(aes(fill = value), colour = "white")+
 
 ```
 
+The most frequent combiniation of the visits is using Chrome browser on desktop. 
+
 ```{r}
 mc = table(train_brow$isMobile,train_brow$deviceCategory)
 mc = mc[,which(colSums(mc)!=0)]
@@ -124,30 +199,39 @@ ggplot(mc, aes(Var.1,Var.2)) + geom_tile(aes(fill = value), colour = "white")+
     labs(title = "Device is Mobile vs. Device Category ", x = 'Device is Mobile ', y = "Device Category")
 ```
 
-geographical/network attributes
+Now we explore geographical attributes of the visit. 
 
 ```{r}
-
 city = data.frame(table(train$city))
 city = city[city$Freq>mean(city$Freq),]
+city = city%>% 
+  mutate(percent = percent(Freq/sum(Freq)))
 
-ggplot(city,aes(x = reorder(Var1,-Freq) , y =Freq))+
-  geom_bar(stat="identity",fill="steelblue")+
-  theme(plot.title = element_text(hjust = 0.5),
-    axis.text.x = element_text(angle = 45, hjust = 1, size=10))+
-    labs(title = "City", x = 'City', y = "Number")
+
+plot_ly(city,x=~reorder(Var1,-Freq),y=~Freq,type = 'bar',text = city$percent)%>%
+  layout(title = "City",
+         xaxis = list(title = "City"),
+        yaxis = list(title = "Number"))
 ```
 
 ```{r}
 
 reg = data.frame(table(train$region))
 reg = reg[reg$Freq>mean(reg$Freq),]
+reg = reg%>% 
+  mutate(percent = percent(Freq/sum(Freq)))
 
-ggplot(reg,aes(x = reorder(Var1,-Freq) , y =Freq))+
-  geom_bar(stat="identity",fill="steelblue")+
-  theme(plot.title = element_text(hjust = 0.5),
-    axis.text.x = element_text(angle = 45, hjust = 1, size=10))+
-    labs(title = "Region", x = 'Region', y = "Number")
+# ggplot(reg,aes(x = reorder(Var1,-Freq) , y =Freq))+
+#   geom_bar(stat="identity",fill="steelblue")+
+#   theme(plot.title = element_text(hjust = 0.5),
+#     axis.text.x = element_text(angle = 45, hjust = 1, size=10))+
+#     labs(title = "Region", x = 'Region', y = "Number")
+
+plot_ly(reg,x=~reorder(Var1,-Freq),y=~Freq,type = 'bar',text = reg$percent)%>%
+  layout(title = "Region",
+         xaxis = list(title = "Region"),
+        yaxis = list(title = "Number"))
+
 ```
 
 
@@ -159,5 +243,6 @@ ggplot(metro,aes(x = reorder(Var1,-Freq) , y =Freq))+
   theme(plot.title = element_text(hjust = 0.5),
     axis.text.x = element_text(angle = 45, hjust = 1, size=10))+
     labs(title = "Metro", x = 'metro', y = "Number")
+
 ```
 
