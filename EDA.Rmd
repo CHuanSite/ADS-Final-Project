@@ -30,6 +30,7 @@ summary(dat)
 head(dat)
 
 ```
+
 ```{r}
 library(ggplot2)
 library(lubridate)
@@ -134,5 +135,57 @@ scale_fill_continuous(
 ```
 
 
+```{r}
+## take a glimpse at the data
+library(caret)
+library(missForest)
 
+## Take a quick glimpse at the data
+glimpse(dat)
+
+## The columns which will be discarded in the end
+col.miss = c()
+
+## Set NA TransactionRevenue into 0
+dat$transactionRevenue[is.na(dat$transactionRevenue)] = 0
+dat$newVisits[is.na(dat$newVisits)] = 0
+
+##
+for(i in 1 : ncol(dat)){
+  miss.temp = sum(is.na(dat[,i])) / nrow(dat)
+  if(miss.temp <= 0.7){
+    col.miss = c(col.miss, i)
+  }
+}
+
+dat.miss = dat[, col.miss]
+index.variable = c("channelGrouping", "browser", "operatingSystem", 
+          "isMobile", "deviceCategory", 
+          "hits1", "pageviews", "timeOnSite", "sessionQualityDim",
+          "newVisits", "transactionRevenue")
+dat.miss <- dat.miss[, index.variable]
+
+## Add one new "other" category for the browser category
+name.browser.other <- sort(table(dat.miss$browser))[sort(table(dat.miss$browser)) <= 10] %>% names
+dat.miss$browser[dat.miss$browser %in% name.browser.other] <- "Others"
+
+## Add one new "other" category for the Operating System category
+name.os.other <- sort(table(dat.miss$browser))[sort(table(dat.miss$operatingSystem)) <= 10] %>% names
+dat.miss$operatingSystem[dat.miss$operatingSystem %in% name.os.other] <- "Others"
+
+## Construct the training and testing dataset
+train.index <- sample(1 : nrow(dat.miss), 0.7 * nrow(dat.miss), replace = FALSE)
+dat.train <- dat.miss[train.index, ]
+dat.test <- dat.miss[-train.index, ]
+
+## The Cross-Validation procedure
+control <- trainControl(method="cv", number=10)
+metric <- "Accuracy"
+
+fit_LinearModel <- train(transactionRevenue~., data=dat.train, method="lm",
+                metric=metric, trControl=control)
+
+
+
+```
 
