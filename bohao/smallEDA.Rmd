@@ -1,0 +1,153 @@
+---
+title: "hits"
+author: "Bohao Tang"
+date: "December 12, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+
+load("../dataset/data.Rdata")
+load("../dataset/hits.Rdata")
+
+show = head(data, 20)
+show_hits = head(hits_data, 20)
+hits_data = hits_data %>% select(-item.currencyCode, -transaction.currencyCode, -page.searchCategory)
+hits_data$hitNumber = as.numeric(hits_data$hitNumber)
+
+data$transactionRevenue[is.na(data$transactionRevenue)] = 0
+data$totalTransactionRevenue[is.na(data$totalTransactionRevenue)] = 0
+data$transactionRevenue = as.numeric(data$transactionRevenue)
+data$totalTransactionRevenue = as.numeric(data$totalTransactionRevenue)
+
+hits_data$transaction.transactionRevenue[is.na(hits_data$transaction.transactionRevenue)] = 0
+hits_data$transaction.transactionRevenue = as.numeric(hits_data$transaction.transactionRevenue)
+
+fulldata = merge(data, hits_data, by = c("fullVisitorId","visitId")) %>% 
+           arrange(fullVisitorId,visitId, hitNumber)
+show_merge = head(fulldata, 20)
+```
+
+```{r}
+## You will find that actually you can use transaction.transactionRevenue 
+## to nearly precisely predict totalTransactionRevenue
+
+compare = fulldata %>% group_by(fullVisitorId,visitId) %>% 
+          summarise(diff = max(totalTransactionRevenue) - max(transaction.transactionRevenue))
+mean(compare$diff == 0)
+sum(compare$diff != 0)
+### Therefore we'd better here remove all columns in hits data with colname transaction.*
+
+trans_name = grep("transaction\\..*", colnames(hits_data), value = T)
+hits_data = hits_data %>% select(-trans_name)
+```
+
+```{r}
+## Then we want to simplify the hits data because it is nested
+## we try to get some useful summary for inner dataframe
+
+empty = sapply(hits_data$experiment, is_empty)
+mean(empty)
+empty = sapply(hits_data$customVariables, is_empty)
+mean(empty)
+empty = sapply(hits_data$customDimensions, is_empty)
+mean(empty)
+empty = sapply(hits_data$customMetrics, is_empty)
+mean(empty)
+empty = sapply(hits_data$publisher_infos, is_empty)
+mean(empty)
+
+## Therefore free to delete these five column
+hits_data = hits_data %>% select(-experiment, -customVariables,
+                                 -customDimensions, -customMetrics,
+                                 -publisher_infos)
+
+## continue to deal with product and promotion
+
+#### promotion is about the layout of the page, typical like this
+hits_data$promotion[[1]]
+#### since we have other tag for the types of goods, here we just discard this column
+hits_data = hits_data %>% select(-promotion)
+  
+#### promotion is the detail information for the goods, typical like this
+hits_data$product[[2]]
+#### since we are predicting revenue here
+#### we collect only 5 quantiles of prices
+hits_data$price_q1 = NA
+hits_data$price_q2 = NA
+hits_data$price_q3 = NA
+hits_data$price_q4 = NA
+hits_data$price_q5 = NA
+for(i in 1:nrow(hits_data)){
+  if(!is_empty(hits_data$product[[i]])){
+    hits_data[i, c("price_q1", "price_q2", "price_q3", 
+                   "price_q4", "price_q5")] = 
+      quantile(as.numeric(hits_data$product[[i]]$productPrice))
+  }
+}
+hits_data = hits_data %>% select(-product)
+```
+
+```{r}
+### Then let's see the missing behavior of variables
+enames = colnames(hits_data)
+for(name in enames){
+  cat(paste(name,":", mean(is.na(hits_data[[name]])), "\n"))
+}
+cat("\n\n")
+
+### Notice that the data has a inner difference as entrance row or others
+### Therefore a missing at rate 0.82 may regard as regular
+### In this first stage we want to delete out latencyTracking group
+### Let's see if they are meaningful
+cat("Natural Probability of Transaction : ")
+cat(mean(fulldata$transactionRevenue > 0))
+cat("\n")
+latency_name = grep("latency.*", colnames(fulldata), value = T)
+for(lname in latency_name){
+  cat(paste(lname,":", mean(fulldata$transactionRevenue[!is.na(fulldata[[lname]])] > 0), "\n"))
+}
+
+### similar and since latency group missing at rate 99%+
+### They won't be useful even they do have some power to explain 
+hits_data = hits_data %>% select(-latency_name)
+
+### similar for some feature missing at extremely large rate
+hits_data = hits_data %>% select(-page.searchKeyword)
+hits_data = hits_data %>% select(-eCommerceAction.option)
+hits_data = hits_data %>% select(-social.socialNetwork)
+hits_data = hits_data %>% select(-promotionActionInfo.promoIsClick)
+```
+
+```{r}
+#### now for some detail exploring
+#### For example in pages information, it seems we only need to
+#### save page.PageLevel1-4 and for appinfo we only need app landing and app exit
+#### and let's don't move content group since they are simple
+
+hits_data = hits_data %>% select(-page.pagePath)
+hits_data = hits_data %>% select(-page.pageTitle)
+hits_data = hits_data %>% select(-page.hostname)
+hits_data = hits_data %>% select(-appInfo.screenName)
+
+```
+
+```{r}
+### now let's save the data and link again
+counting = data %>% group_by(fullVisitorId, visitId) %>% summarise(count = n())
+data = merge(counting, data, by=c("fullVisitorId", "visitId")) %>% filter(count == 1) %>% select(-count)
+save(data, file = "../dataset/tidydata.Rdata")
+save(hits_data, file = "../dataset/tidyhits_data.Rdata")
+
+fulldata = merge(data, hits_data, by = c("fullVisitorId","visitId")) %>% 
+           arrange(fullVisitorId,visitId, hitNumber)
+
+fulldata = fulldata %>% select(-bounces, -transactions, -totalTransactionRevenue)
+save(fulldata, file = "../dataset/full.Rdata")
+```
+
