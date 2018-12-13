@@ -1,0 +1,19 @@
+---
+title: "models"
+author: "Bohao Tang"
+date: "December 13, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+load("../dataset/full.Rdata")
+show = head(fulldata, 50)
+```
+
+```{r}
+```
