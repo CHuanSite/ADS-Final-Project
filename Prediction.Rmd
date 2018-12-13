@@ -1,10 +1,12 @@
 ---
 title: "Prediction"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 # Loading Package
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE}
 ## Load packages
 library(tidyverse)
 library(caret)
@@ -16,7 +18,7 @@ library(keras)
 ```
 
 # Reading Data
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = FALSE}
 ## Read in data
 dat <- read_csv("/Users/chenhuan/Downloads/Data-3/train_US_1year_nojson.csv")
 
@@ -25,9 +27,9 @@ glimpse(dat)
 ```
 
 # Study correlation between variables
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = FALSE}
 ## Delete the 
-dat <- dat %>% dplyr::select(- transactions, -totalTransactionRevenue, -adwordsClickInfo.isVideoAd, -visitStartTime)
+dat <- dat %>% dplyr::select(- transactions, -totalTransactionRevenue, -adwordsClickInfo.isVideoAd, -visitStartTime, -referralPath)
 
 ## Compute the correlation between transactionRevenue and other variables
 y <- dat$transactionRevenue
@@ -54,7 +56,7 @@ m
 ```
 
 # Constructing data matrix for linear regression
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = FALSE}
 ## Data matrix to do the linear regression
 dat.mat <- dat %>% 
   mutate(date = ymd(date)) %>%
@@ -76,9 +78,9 @@ dat.test <- dat.mat[-train.index, ]
 ```
 
 # Using linear regression
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = FALSE}
 model_lm <- lm(log(1 + transactionRevenue) ~ . , data = as.data.frame(dat.train))
-summary(model_lm)
+#summary(model_lm)
 pred.res <- predict(model_lm, as.data.frame(dat.test %>% dplyr::select(-transactionRevenue)))
 pred.res[which(pred.res < 0)] = 0
 loss.lm <- sum((log(dat.test$transactionRevenue + 1) - pred.res)^2) / length(pred.res)
@@ -87,7 +89,7 @@ print(paste0("The loss for the linear regression is ", round(loss.lm,4) ))
 ```
 
 # Using logistic + linear regression 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = FALSE}
 ## Fit a logistic regression model to find out which customer buys items
 model_logistic <- glm(factor(as.numeric(transactionRevenue > 0)) ~. , data = dat.train, family = "binomial")
 predict.buy <- predict(model_logistic, dat.test %>% dplyr::select(-transactionRevenue), type="response")
@@ -110,7 +112,7 @@ print(paste0("The loss for the logistic + linear regression is ", round(loss.log
 ```
 
 # Using Decision Tree + Linear Regression 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE, eval = FALSE}
 ## Fit a logistic regression model to find out which customer buys items
 # trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
 model_tree <- train(factor(as.numeric(transactionRevenue > 0)) ~. , data = dat.train, method = "rf")
@@ -133,7 +135,7 @@ print(paste0("The loss for the decision tree + linear regression is ", round(los
 
 
 # Using Keras Neural Network to do the prediciton
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE, eval = FALSE}
 dat.keras.x <- dat.mat %>% 
   dplyr::select(-transactionRevenue) %>%
   mutate_if(is.factor, fct_explicit_na) %>% 
@@ -177,7 +179,7 @@ history <- model_nn %>%
 ```
 
 # Using Glmnet 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = FALSE}
 ## The training dataset for x and y
 dat.glmnet.x <- dat.mat %>% 
   dplyr::select(-transactionRevenue) %>%
@@ -200,8 +202,8 @@ dat.glmnet.test.y <- dat.glmnet.y[-train.index, ]
 
 ## Fitting the lasso 
 model_lasso <- cv.glmnet(dat.glmnet.x, (log(pull(dat.glmnet.y) + 1)), family="gaussian", alpha = 0, nlambda = 20, type.measure = "mse")
-pred.res <- predict(model_lasso, dat.glmnet.test.x, s=m_glm$lambda.min, type = "response") 
-plot(m_glm,xvar = "lambda", label = TRUE)
+pred.res <- predict(model_lasso, dat.glmnet.test.x, s=model_lasso$lambda.min, type = "response") 
+plot(model_lasso,xvar = "lambda", label = TRUE)
 
 #fit = glmnet(x, y, alpha = 0.2, weights = c(rep(1,50),rep(2,50)), nlambda = 20)
 loss.glmnet <- sum((log(dat.test$transactionRevenue + 1) - pred.res)^2) / length(pred.res)
@@ -211,7 +213,7 @@ print(paste0("The loss for the lasso regression is ", round(loss.glmnet,4) ))
 
 
 # Using XG-Boosting
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = FALSE}
 ## Data matrix to do the xgboosting
 dat.xgb.x <- dat.mat %>%
   dplyr::select(-transactionRevenue) %>%
@@ -254,7 +256,11 @@ print(paste0("The loss for the lasso regression is ", round(loss.xgb,4) ))
 ```
 
 
-
+```{r}
+loss <- c(loss.lm, loss.logistic_lm, loss.glmnet, loss.xgb)
+index <- c("lm", "logistic_lm", "glmnet", "xgb")
+data.frame(loss, index)
+```
 
 
 
