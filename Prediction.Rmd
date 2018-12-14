@@ -194,9 +194,9 @@ print(paste0("The loss for the neural network is ", round(loss.nn,4) ))
 ## The training dataset for x and y
 dat.glmnet.x <- dat.mat %>% 
   dplyr::select(-transactionRevenue) %>%
-  mutate_if(is.factor, fct_explicit_na) %>% 
-  mutate_if(is.numeric, funs(ifelse(is.na(.), 0L, .))) %>% 
-  mutate_if(is.factor, fct_lump, prop = 0.05) %>% 
+  # mutate_if(is.factor, fct_explicit_na) %>% 
+  # mutate_if(is.numeric, funs(ifelse(is.na(.), 0L, .))) %>% 
+  # mutate_if(is.factor, fct_lump, prop = 0.05) %>% 
   model.matrix(~.-1, .) %>% 
   scale() %>% 
   round(4)
@@ -212,7 +212,7 @@ dat.glmnet.test.y <- dat.glmnet.y[-train.index, ]
 
 
 ## Fitting the lasso 
-model_lasso <- cv.glmnet(dat.glmnet.x, (log(pull(dat.glmnet.y) + 1)), family="gaussian", alpha = 0, nlambda = 20, type.measure = "mse")
+model_lasso <- cv.glmnet(dat.glmnet.x, (log(pull(dat.glmnet.y) + 1)), family="gaussian", alpha = 0, nlambda = 100, type.measure = "mse")
 pred.res <- predict(model_lasso, dat.glmnet.test.x, s=model_lasso$lambda.min, type = "response") 
 plot(model_lasso,xvar = "lambda", label = TRUE)
 
@@ -243,16 +243,15 @@ dat.xgb.val.x <- xgb.DMatrix(data = data.matrix(dat.xgb.x[train.index[val.index]
 dat.xgb.test.x <- xgb.DMatrix(data = data.matrix(dat.xgb.x[-train.index, ]))
 
 p <- list(objective = "reg:linear",
-          booster = "gbtree",
+          booster = "gblinear",
           eval_metric = "rmse",
           nthread = 4,
           eta = 0.05,
-          max_depth = 7,
-          min_child_weight = 5,
+          max_depth = 20,
+          min_child_weight = 1,
           gamma = 0,
           subsample = 0.8,
-          colsample_bytree = 0.7,
-          colsample_bylevel = 0.6,
+          colsample_bytree = 1,
           nrounds = 2000)
 
 
