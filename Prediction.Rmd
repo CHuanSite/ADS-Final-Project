@@ -18,7 +18,7 @@ library(keras)
 ```
 
 # Reading Data
-```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = FALSE}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 ## Read in data
 dat <- read_csv("/Users/chenhuan/Downloads/Data-3/train_US_1year_nojson.csv")
 
@@ -27,7 +27,7 @@ glimpse(dat)
 ```
 
 # Study correlation between variables
-```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = FALSE}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 ## Delete the 
 dat <- dat %>% dplyr::select(- transactions, -totalTransactionRevenue, -adwordsClickInfo.isVideoAd, -visitStartTime, -referralPath)
 
@@ -56,7 +56,7 @@ m
 ```
 
 # Constructing data matrix for linear regression
-```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = FALSE}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 ## Data matrix to do the linear regression
 dat.mat <- dat %>% 
   mutate(date = ymd(date)) %>%
@@ -83,9 +83,9 @@ dat.test <- dat.mat[-train.index, ]
 ```
 
 # Using linear regression
-```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = FALSE}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 model_lm <- lm(log(1 + transactionRevenue) ~ . , data = as.data.frame(dat.train))
-summary(model_lm)
+#summary(model_lm)
 pred.res <- predict(model_lm, as.data.frame(dat.test %>% dplyr::select(-transactionRevenue)))
 pred.res[which(pred.res < 0)] = 0
 loss.lm <- sum((log(dat.test$transactionRevenue + 1) - pred.res)^2) / length(pred.res)
@@ -94,7 +94,7 @@ print(paste0("The loss for the linear regression is ", round(loss.lm,4) ))
 ```
 
 # Using logistic + linear regression 
-```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = FALSE}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 ## Fit a logistic regression model to find out which customer buys items
 model_logistic <- glm(factor(as.numeric(transactionRevenue > 0)) ~. , data = dat.train, family = "binomial")
 predict.buy <- predict(model_logistic, dat.test %>% dplyr::select(-transactionRevenue), type="response")
@@ -111,7 +111,7 @@ pred.res = predicition.index
 pred.res[which(pred.res < 0)] = 0
 
 ## Loss for the linear regression 
-loss.logistic_lm <- sum((log(dat.test$transactionRevenue + 1) - pred.res)^2) / length(predicition.index)
+loss.logistic_lm <- sum((log(dat.test$transactionRevenue + 1) - pred.res)^2) / length(pred.res)
 print(paste0("The loss for the logistic + linear regression is ", round(loss.logistic_lm,4) ))
 
 ```
@@ -134,6 +134,7 @@ predicition.index[index] = pred.res
 
 ## Loss for the linear regression 
 loss.logistic_lm <- sum((log(dat.test$transactionRevenue + 1) - predicition.index)^2) / length(predicition.index)
+
 print(paste0("The loss for the decision tree + linear regression is ", round(loss.logistic_lm,4) ))
 
 ```
@@ -151,23 +152,20 @@ dat.keras.y <- dat.mat %>% dplyr::select(transactionRevenue)
 
 ## Dataset for training model
 dat.keras.train.x <- dat.keras.x[train.index, ]
-dat.keras.train.y <- as.numeric(pull(dat.keras.y[train.index, ]) > 0)
+dat.keras.train.y <- pull(dat.keras.y[train.index, ])
 
 ## Data for testing the model
 dat.keras.test.x <- dat.keras.x[-train.index, ]
 dat.keras.test.y <- pull(dat.keras.y[-train.index, ])
 
-
-
+## Train the neural network model
 model_nn <- keras_model_sequential() 
 
 model_nn %>% 
-  layer_dense(units = 32, activation = "relu", input_shape = ncol(dat.keras.x)) %>% 
-  layer_dropout(rate = 0.5) %>% 
+   layer_dense(units = 32, activation = "relu", input_shape = ncol(dat.keras.x)) %>% 
+  layer_dropout(rate = 0.1) %>%
   layer_dense(units = 16, activation = "relu") %>%
-  layer_dropout(rate = 0.5) %>%
-  layer_dense(units = 8, activation = "relu") %>%
-  layer_dropout(rate = 0.5) %>%
+  layer_dropout(rate = 0.1) %>%
   layer_dense(units = 1, activation = "linear")
 
 model_nn %>% compile(loss = "mean_squared_error",
@@ -175,12 +173,16 @@ model_nn %>% compile(loss = "mean_squared_error",
 
 history <- model_nn %>% 
   fit(dat.keras.train.x, log(dat.keras.train.y + 1), 
-      epochs = 50, 
+      epochs = 100, 
       batch_size = 4096, 
-      verbose = 0, 
+      verbose = 1, 
       validation_split = 0.2)
 
+plot(history)
+
 pred.res <- predict(model_nn, dat.keras.test.x)
+pred.res[which(pred.res < 0)] = 0
+
 loss.nn <- sum((log(dat.test$transactionRevenue + 1) - pred.res)^2) / length(pred.res)
 print(paste0("The loss for the neural network is ", round(loss.nn,4) ))
 
@@ -188,7 +190,7 @@ print(paste0("The loss for the neural network is ", round(loss.nn,4) ))
 ```
 
 # Using Glmnet 
-```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = FALSE}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 ## The training dataset for x and y
 dat.glmnet.x <- dat.mat %>% 
   dplyr::select(-transactionRevenue) %>%
@@ -222,7 +224,7 @@ print(paste0("The loss for the lasso regression is ", round(loss.glmnet,4) ))
 
 
 # Using XG-Boosting
-```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = FALSE}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 ## Data matrix to do the xgboosting
 dat.xgb.x <- dat.mat %>%
   dplyr::select(-transactionRevenue) %>%
@@ -237,10 +239,8 @@ dat.xgb.train.x <- xgb.DMatrix(data = data.matrix(dat.xgb.x[train.index[-val.ind
 ## The validation data matrix to do xg-boosting
 dat.xgb.val.x <- xgb.DMatrix(data = data.matrix(dat.xgb.x[train.index[val.index], ]), label = log(1 + pull(dat.xgb.y[train.index[val.index], ])))
 
-
 ## The testing data matrix to do xg-boosting
 dat.xgb.test.x <- xgb.DMatrix(data = data.matrix(dat.xgb.x[-train.index, ]))
-
 
 p <- list(objective = "reg:linear",
           booster = "gbtree",
@@ -260,15 +260,19 @@ model_xgb <- xgb.train(p, dat.xgb.train.x, p$nrounds, list(val = dat.xgb.val.x),
 
 pred.res <- predict(model_xgb, dat.xgb.test.x)
 loss.xgb <- sum((log(dat.xgb.y[-train.index, ] + 1) - pred.res)^2) / length(pred.res)
-print(paste0("The loss for the lasso regression is ", round(loss.xgb,4) ))
+print(paste0("The loss for the XGB is ", round(loss.xgb,4) ))
 
 ```
 
 
 ```{r}
-loss <- c(loss.lm, loss.logistic_lm, loss.glmnet, loss.xgb)
-index <- c("lm", "logistic_lm", "glmnet", "xgb")
-data.frame(loss, index)
+loss <- c(loss.lm, loss.logistic_lm, loss.nn, loss.glmnet, loss.xgb)
+index <- c("lm", "logistic_lm","neural network", "glmnet", "xgb")
+loss.frame <- data.frame(loss, index)
+loss.frame %>% 
+  ggplot(aes(index, loss)) +
+  geom_bar(stat="identity")
+  
 ```
 
 
