@@ -260,7 +260,6 @@ model_xgb <- xgb.train(p, dat.xgb.train.x, p$nrounds, list(val = dat.xgb.val.x),
 pred.res <- predict(model_xgb, dat.xgb.test.x)
 loss.xgb <- sum((log(dat.xgb.y[-train.index, ] + 1) - pred.res)^2) / length(pred.res)
 print(paste0("The loss for the XGB is ", round(loss.xgb,4) ))
-
 ```
 
 
