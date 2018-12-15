@@ -1,0 +1,277 @@
+---
+title: "Prediction"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Loading Package
+```{r, warning = FALSE, message = FALSE, tidy = TRUE}
+## Load packages
+library(tidyverse)
+library(caret)
+library(lubridate)
+library(MASS)
+library(glmnet)
+library(xgboost)
+library(keras)
+```
+
+# Reading Data
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+## Read in data
+dat <- read_csv("/Users/chenhuan/Downloads/Data-3/train_US_1year_nojson.csv")
+
+## Take a quick glimpse at the data
+glimpse(dat)
+```
+
+# Study correlation between variables
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+## Delete the 
+dat <- dat %>% dplyr::select(- transactions, -totalTransactionRevenue, -adwordsClickInfo.isVideoAd, -visitStartTime, -referralPath)
+
+## Compute the correlation between transactionRevenue and other variables
+y <- dat$transactionRevenue
+y[which(is.na(y))] = 0
+m <- dat %>% 
+  mutate(date = ymd(date)) %>%
+  mutate(year = year(date),
+         month = month(date),
+         day = day(date),
+         isMobile = ifelse(isMobile, 1L, 0L),
+         isTrueDirect = ifelse(isMobile, 1L, 0L)) %>% 
+  mutate_all(funs(ifelse(is.na(.), 0, .))) %>% 
+  dplyr::select(-date, -fullVisitorId, -visitId) %>% 
+  mutate_if(is.character, factor) %>% 
+  mutate_if(is.factor, fct_lump, prop = 0.01) %>%
+  model.matrix(~ . - 1, .) %>% 
+  cor(y) %>%
+  data.table::as.data.table(keep.rownames=TRUE) %>% 
+  set_names("Feature", "rho") %>% 
+  arrange(-rho) 
+
+m
+
+```
+
+# Constructing data matrix for linear regression
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+## Data matrix to do the linear regression
+dat.mat <- dat %>% 
+  mutate(date = ymd(date)) %>%
+  mutate(year = year(date),
+         month = month(date),
+         day = day(date),
+         isMobile = ifelse(isMobile, 1L, 0L),
+         isTrueDirect = ifelse(isMobile, 1L, 0L)) %>% 
+  mutate_all(funs(ifelse(is.na(.), 0, .))) %>% 
+  dplyr::select(-date, -fullVisitorId, -visitId) %>% 
+  mutate_if(is.character, factor) %>% 
+  mutate_if(is.factor, fct_lump, prop = 0.01)
+
+# dat.mat <- dat %>% 
+#   dplyr::select(transactionRevenue, hits1, pageviews, sessionQualityDim, timeOnSite, channelGrouping, operatingSystem, visitNumber, city, region, metro) %>% 
+#   mutate_all(funs(ifelse(is.na(.), 0, .))) %>% 
+#   mutate_if(is.character, factor) %>% 
+#   mutate_if(is.factor, fct_lump, prop = 0.01)
+
+train.index <- sample(1 : nrow(dat.mat), 0.7 * nrow(dat.mat), replace = FALSE)
+dat.train <- dat.mat[train.index, ]
+dat.test <- dat.mat[-train.index, ]
+
+```
+
+# Using linear regression
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+model_lm <- lm(log(1 + transactionRevenue) ~ . , data = as.data.frame(dat.train))
+#summary(model_lm)
+pred.res <- predict(model_lm, as.data.frame(dat.test %>% dplyr::select(-transactionRevenue)))
+pred.res[which(pred.res < 0)] = 0
+loss.lm <- sum((log(dat.test$transactionRevenue + 1) - pred.res)^2) / length(pred.res)
+print(paste0("The loss for the linear regression is ", round(loss.lm,4) ))
+
+```
+
+# Using logistic + linear regression 
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+## Fit a logistic regression model to find out which customer buys items
+model_logistic <- glm(factor(as.numeric(transactionRevenue > 0)) ~. , data = dat.train, family = "binomial")
+predict.buy <- predict(model_logistic, dat.test %>% dplyr::select(-transactionRevenue), type="response")
+
+## Fit linear regression model for the buy option data
+model_lm <- lm(log(1 + transactionRevenue) ~ . , data = as.data.frame(dat.train %>% filter(transactionRevenue > 0)))
+
+## The index which has predict.buy larger than 0.5 and the prediciton result
+index = which(predict.buy > 0.5)
+pred.res <- predict(model_lm, dat.test[index, ])
+predicition.index <- rep(0, nrow(dat.test))
+predicition.index[index] = pred.res
+pred.res = predicition.index
+pred.res[which(pred.res < 0)] = 0
+
+## Loss for the linear regression 
+loss.logistic_lm <- sum((log(dat.test$transactionRevenue + 1) - pred.res)^2) / length(pred.res)
+print(paste0("The loss for the logistic + linear regression is ", round(loss.logistic_lm,4) ))
+
+```
+
+# Using Decision Tree + Linear Regression 
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE, eval = FALSE}
+## Fit a logistic regression model to find out which customer buys items
+# trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+model_tree <- train(factor(as.numeric(transactionRevenue > 0)) ~. , data = dat.train, method = "rf")
+predict.buy <- predict(model_tree, dat.test %>% dplyr::select(-transactionRevenue), type="response")
+
+## Fit linear regression model for the buy option data
+model_lm <- lm(log(1 + transactionRevenue) ~ . , data = as.data.frame(dat.train %>% filter(transactionRevenue > 0)))
+
+## The index which has predict.buy larger than 0.5 and the prediciton result
+index = which(predict.buy > 0.5)
+pred.res <- predict(model_lm, dat.test[index, ])
+predicition.index <- rep(0, nrow(dat.test))
+predicition.index[index] = pred.res
+
+## Loss for the linear regression 
+loss.logistic_lm <- sum((log(dat.test$transactionRevenue + 1) - predicition.index)^2) / length(predicition.index)
+
+print(paste0("The loss for the decision tree + linear regression is ", round(loss.logistic_lm,4) ))
+
+```
+
+
+# Using Keras Neural Network to do the prediciton
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE, eval = TRUE}
+dat.keras.x <- dat.mat %>% 
+  dplyr::select(-transactionRevenue) %>%
+  mutate_if(is.factor, fct_explicit_na) %>% 
+  mutate_if(is.numeric, funs(ifelse(is.na(.), 0L, .))) %>% 
+  mutate_if(is.factor, fct_lump, prop = 0.05) %>% 
+  model.matrix(~.-1, .) 
+dat.keras.y <- dat.mat %>% dplyr::select(transactionRevenue)
+
+## Dataset for training model
+dat.keras.train.x <- dat.keras.x[train.index, ]
+dat.keras.train.y <- pull(dat.keras.y[train.index, ])
+
+## Data for testing the model
+dat.keras.test.x <- dat.keras.x[-train.index, ]
+dat.keras.test.y <- pull(dat.keras.y[-train.index, ])
+
+## Train the neural network model
+model_nn <- keras_model_sequential() 
+
+model_nn %>% 
+   layer_dense(units = 32, activation = "relu", input_shape = ncol(dat.keras.x)) %>% 
+  layer_dropout(rate = 0.1) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dropout(rate = 0.1) %>%
+  layer_dense(units = 1, activation = "linear")
+
+model_nn %>% compile(loss = "mean_squared_error",
+                 optimizer = optimizer_rmsprop())
+
+history <- model_nn %>% 
+  fit(dat.keras.train.x, log(dat.keras.train.y + 1), 
+      epochs = 100, 
+      batch_size = 4096, 
+      verbose = 1, 
+      validation_split = 0.2)
+
+plot(history)
+
+pred.res <- predict(model_nn, dat.keras.test.x)
+pred.res[which(pred.res < 0)] = 0
+
+loss.nn <- sum((log(dat.test$transactionRevenue + 1) - pred.res)^2) / length(pred.res)
+print(paste0("The loss for the neural network is ", round(loss.nn,4) ))
+
+
+```
+
+# Using Glmnet 
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+## The training dataset for x and y
+dat.glmnet.x <- dat.mat %>% 
+  dplyr::select(-transactionRevenue) %>%
+  # mutate_if(is.factor, fct_explicit_na) %>% 
+  # mutate_if(is.numeric, funs(ifelse(is.na(.), 0L, .))) %>% 
+  # mutate_if(is.factor, fct_lump, prop = 0.05) %>% 
+  model.matrix(~.-1, .) %>% 
+  scale() %>% 
+  round(4)
+dat.glmnet.y <- dat.mat %>% dplyr::select(transactionRevenue)
+
+## Training dataset for the lasso
+dat.glmnet.train.x <- dat.glmnet.x[train.index, ]
+dat.glmnet.train.y <- dat.glmnet.y[train.index, ]
+
+## Testing dataset for the lasso
+dat.glmnet.test.x <- dat.glmnet.x[-train.index, ]
+dat.glmnet.test.y <- dat.glmnet.y[-train.index, ]
+
+
+## Fitting the lasso 
+model_lasso <- cv.glmnet(dat.glmnet.x, (log(pull(dat.glmnet.y) + 1)), family="gaussian", alpha = 0, nlambda = 100, type.measure = "mse")
+pred.res <- predict(model_lasso, dat.glmnet.test.x, s=model_lasso$lambda.min, type = "response") 
+plot(model_lasso,xvar = "lambda", label = TRUE)
+
+#fit = glmnet(x, y, alpha = 0.2, weights = c(rep(1,50),rep(2,50)), nlambda = 20)
+loss.glmnet <- sum((log(dat.test$transactionRevenue + 1) - pred.res)^2) / length(pred.res)
+print(paste0("The loss for the lasso regression is ", round(loss.glmnet,4) ))
+
+```
+
+
+# Using XG-Boosting
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+## Data matrix to do the xgboosting
+dat.xgb.x <- dat.mat %>%
+  dplyr::select(-transactionRevenue) %>%
+  mutate_if(is.factor, as.integer) %>% 
+  glimpse()
+dat.xgb.y <- dat.mat %>% dplyr::select(transactionRevenue)
+val.index <- sample(1 : length(train.index), 0.1 * length(train.index), replace = FALSE)
+
+## The training data matrix to do xg-boosting
+dat.xgb.train.x <- xgb.DMatrix(data = data.matrix(dat.xgb.x[train.index[-val.index], ]), label = log(1 + pull(dat.xgb.y[train.index[-val.index], ])))
+
+## The validation data matrix to do xg-boosting
+dat.xgb.val.x <- xgb.DMatrix(data = data.matrix(dat.xgb.x[train.index[val.index], ]), label = log(1 + pull(dat.xgb.y[train.index[val.index], ])))
+
+## The testing data matrix to do xg-boosting
+dat.xgb.test.x <- xgb.DMatrix(data = data.matrix(dat.xgb.x[-train.index, ]))
+
+p <- list(objective = "reg:linear",
+          booster = "gblinear",
+          eval_metric = "rmse",
+          nthread = 4,
+          eta = 0.05,
+          max_depth = 20,
+          min_child_weight = 1,
+          gamma = 0,
+          subsample = 0.8,
+          colsample_bytree = 1,
+          nrounds = 2000)
+
+
+model_xgb <- xgb.train(p, dat.xgb.train.x, p$nrounds, list(val = dat.xgb.val.x), print_every_n = 100, early_stopping_rounds = 100)
+
+pred.res <- predict(model_xgb, dat.xgb.test.x)
+loss.xgb <- sum((log(dat.xgb.y[-train.index, ] + 1) - pred.res)^2) / length(pred.res)
+print(paste0("The loss for the XGB is ", round(loss.xgb,4) ))
+```
+
+
+```{r}
+loss <- c(loss.lm, loss.logistic_lm, loss.nn, loss.glmnet, loss.xgb)
+index <- c("lm", "logistic_lm","neural network", "glmnet", "xgb")
+loss.frame <- data.frame(loss, index)
+loss.frame %>% 
+  ggplot(aes(index, loss)) +
+  geom_bar(stat="identity")
+  
+```
+
+
+

@@ -1,0 +1,273 @@
+---
+title: "models"
+author: "Bohao Tang"
+date: "December 13, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F}
+library(tidyverse)
+library(randomForest)
+library(lubridate)
+library(kableExtra)
+load("../dataset/full.Rdata")
+glimpse(full)
+
+full = full %>% mutate(ID = paste0(fullVisitorId, visitId))
+```
+
+```{r}
+# Let's wait and have a sight of what good are people buying
+load("../dataset/hits.Rdata")
+
+hits_data = hits_data %>% mutate(ID = paste0(fullVisitorId, visitId))
+buy.id = hits_data %>% group_by(ID) %>%
+         summarise(buy = max(!is.na(transaction.transactionId))) %>%
+         filter(buy > 0)
+buy.id = buy.id$ID
+buydata = hits_data %>% filter(ID %in% buy.id)
+show_buy = head(buydata, n=50)
+
+product_name = c()
+for(i in 1:nrow(buydata)){
+  if(!is_empty(buydata$product[[i]])){
+    product_name = unique(c(product_name, buydata$product[[i]]$v2ProductName))
+  }
+}
+
+buycount = data.frame(name=product_name, count=0)
+
+for(i in 1:nrow(buydata)){
+  if(!is.na(buydata$eventInfo.eventAction[i]) & buydata$eventInfo.eventAction[i] == "Add to Cart"){
+    for(name in buydata$product[[i]]$v2ProductName){
+      buycount$count[buycount$name == name] = buycount$count[buycount$name == name]+1
+    }
+  }
+}
+
+colormap = function(x){
+  col = c()
+  for(rate in x){
+    if(rate > 4) col = c(col,"red")
+    else if(rate > 2.62) col = c(col, "orange")
+    else if(rate > 2.6) col = c(col, "blue")
+    else col = c(col, "black")
+  }
+  col
+}
+buycount %>% mutate(`Ratio (%)` = count / sum(count) * 100) %>% 
+             select(-count) %>% arrange(desc(`Ratio (%)`)) %>% head(n=10) %>%
+             rename(`Good Name` = name) %>%
+             mutate(`Ratio (%)` = cell_spec(`Ratio (%)`, color = colormap(`Ratio (%)`))) %>%
+             kable(escape = F) %>%
+             kable_styling(bootstrap_options = "striped", full_width = F, position = "left")
+
+topten = (buycount %>% arrange(desc(count)))["name"]$name[1:10] %>% as.character()
+```
+
+```{r}
+## Then Let's describe some detail of the transaction behavior
+
+#### Transaction won't happen when people are viewing the contents
+table(Content = full$contentGroup.contentGroup2, Transaction = full$has.transaction, useNA = "ifany") %>% 
+  kable() %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left") %>%
+  add_header_above(c("Content" = 1, "Had Transaction" = 2))
+
+#### However, lot's of people do exit at the content page
+table(full$contentGroup.contentGroup2, isExit = full$isExit, useNA = "ifany") %>% 
+  kable() %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left") %>%
+  add_header_above(c("Content " = 1, "Exit Page ?" = 2))
+
+#### Also there will be no transaction at entrance page
+table(full$has.transaction, isEntrance = full$isEntrance, useNA = "ifany") %>% 
+  kable() %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left") %>%
+  add_header_above(c("Transactions?" = 1, "Entrance Page?" = 2))
+
+### Which suggest that people just viewing content after entrance 
+### and exit then can not make revenue
+viewer = full %>% group_by(fullVisitorId, visitId) %>%
+                  summarise(buy = max(transactionRevenue>0),
+                            just.view = min(!is.na(isEntrance) |
+                                            page.pagePathLevel1 == "/home" |
+                                            !is.na(contentGroup.contentGroup2)))
+table(transaction = viewer$buy, just_view = viewer$just.view) %>% 
+  kable() %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left") %>%
+  add_header_above(c("Transaction?" = 1, "Just Viewing?" = 2))
+viewer = viewer %>% mutate(ID = paste0(fullVisitorId, visitId)) %>% select(-buy)
+
+### Which also suggest there should be some tag that is about transaction
+### Yes! eventInfo.eventAction is discribing people's action in the website
+unique(full$eventInfo.eventAction)
+addcart = full %>% group_by(fullVisitorId, visitId) %>% 
+                   summarise(buy = max(transactionRevenue>0),
+                             no_na = max(!is.na(eventInfo.eventAction)),
+                             add = sum(!is.na(eventInfo.eventAction) & eventInfo.eventAction == "Add to Cart"), 
+                             delete = sum(!is.na(eventInfo.eventAction) & eventInfo.eventAction == "Remove from Cart"))
+table(transaction = addcart$buy, Add_to_chart = addcart$add > 0) %>% 
+  kable() %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left") %>%
+  add_header_above(c("Transaction?" = 1, "Add to Cart?" = 2))
+table(transaction = addcart$buy, Remove_from_chart = addcart$delete > 0) %>% 
+  kable() %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left") %>%
+  add_header_above(c("Transaction?" = 1, "Remove from Cart?" = 2))
+table(transaction = addcart$buy, Actions = addcart$no_na > 0) %>% 
+  kable() %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left") %>%
+  add_header_above(c("Transaction?" = 1, "Had Actions?" = 2))
+
+## Is social referal important for transaction?
+## Yes, but referal seems to make people not to buy 
+## But may just beacuse of variance
+social = full %>% group_by(fullVisitorId, visitId) %>%
+                  summarise(buy = max(transactionRevenue>0),
+                            social = max(social.hasSocialSourceReferral == "Yes"))
+table(buy = social$buy, social_referal = social$social) %>% 
+  kable() %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left") %>%
+  add_header_above(c("Transaction?" = 1, "Socail Referral?" = 2))
+
+### Therefore it's suggest that we should use reduce the external dataset 
+### according to these features
+
+### So we choose following reduction
+# hits = full[,35:72]
+# hits$time = as.numeric(hits$time)
+# hits$hour = as.numeric(hits$hour)
+# hits$price_q1[is.na(hits$price_q1)] = 0
+# hits$price_q3[is.na(hits$price_q3)] = 0
+# hits$price_q5[is.na(hits$price_q5)] = 0
+# hits$contentGroup.contentGroup2[is.na(hits$contentGroup.contentGroup2)] = "other"
+# hits$eventInfo.eventAction[is.na(hits$eventInfo.eventAction)] = "no action"
+# reduced = hits %>% group_by(ID) %>% 
+#                    summarise(time_q1 = min(time),
+#                              time_q2 = quantile(time, 0.333) - time_q1,
+#                              time_q3 = quantile(time, 0.666) - time_q2,
+#                              time_q4 = max(time) - time_q3,
+#                              hour = median(hour),
+#                              event_count = sum(type == "EVENT"),
+#                              promotion_count = sum(!is.na(promotionActionInfo.promoIsView)),
+#                              social_count = mean(social.hasSocialSourceReferral == "Yes"),
+#                              Bags_count = sum(contentGroup.contentGroup2 == "Bags"),
+#                              Apparel_count = sum(contentGroup.contentGroup2 == "Apparel"),
+#                              Electronics_count = sum(contentGroup.contentGroup2 == "Electronics"), 
+#                              Brands_count = sum(contentGroup.contentGroup2 == "Brands"), 
+#                              Office_count = sum(contentGroup.contentGroup2 == "Office"),
+#                              Accessories_count = sum(contentGroup.contentGroup2 == "Accessories"),
+#                              Drinkware_count = sum(contentGroup.contentGroup2 == "Drinkware"),
+#                              Nest_count = sum(contentGroup.contentGroup2 == "Nest"),
+#                              Topten_count = sum(eventInfo.eventLabel %in% topten),
+#                              Click_count = sum(eventInfo.eventAction %in% c("Quickview Click","Onsite Click","Product Click","Promotion Click")),
+#                              Add_count = sum(eventInfo.eventAction == "Add to Cart"),
+#                              Remove_count = sum(eventInfo.eventAction == "Remove from Cart"),
+#                              price_q1 = median(price_q1[eventInfo.eventAction=="Add to Cart"]),
+#                              price_q3 = median(price_q3[eventInfo.eventAction=="Add to Cart"]),
+#                              price_q5 = median(price_q5[eventInfo.eventAction=="Add to Cart"])
+#                              )
+# 
+# reduced$price_q1[is.na(reduced$price_q1)] = 0
+# reduced$price_q3[is.na(reduced$price_q3)] = 0
+# reduced$price_q5[is.na(reduced$price_q5)] = 0
+# reduced$price_q1 = log(1+reduced$price_q1)
+# reduced$price_q3 = log(1+reduced$price_q3)
+# reduced$price_q5 = log(1+reduced$price_q5)
+# 
+# reduced = merge(reduced, viewer, by="ID")
+
+```
+```{r}
+### Let's see how can reduce itself perform for predicting
+# revenue = full %>% group_by(ID) %>%
+#           summarise(transactionRevenue = log(1+max(transactionRevenue)),
+#                     hits1 = max(hits1))
+# 
+# from_hits = merge(reduced, revenue, by="ID")
+# glimpse(from_hits)
+# 
+# train.ind = sample(nrow(from_hits), floor(0.7*nrow(from_hits)), replace = F)
+# train = from_hits[train.ind,] %>% select(-ID, -time_q1)
+# test = from_hits[-train.ind,] %>% select(-ID, -time_q1)
+# 
+# rf = randomForest(transactionRevenue~., data = train, ntree = 1000)
+# rf.pred = predict(rf, newdata = test)
+# mean((rf.pred - test$transactionRevenue)^2)
+
+### And you can see this is already a little better
+```
+
+```{r}
+#### Now let's combine original data and our features extracted from hits data
+#### And finalize our model
+# 
+# original = full %>% group_by(ID) %>% filter(hitNumber == max(hitNumber))
+# original = original[,1:34] %>% select(-hitNumber) %>% 
+#            mutate(ID = paste0(fullVisitorId, visitId)) %>% 
+#            dplyr::select(-fullVisitorId, -visitId)
+# 
+# original$transactionRevenue = log(1+original$transactionRevenue)
+# 
+# final.data = merge(original, reduced, by="ID") %>% 
+#              dplyr::select(-ID, -fullVisitorId, -visitId, -has.transaction)
+# 
+# ### then use same preprocess skills as in previous prediction
+# 
+# final <- final.data %>% 
+#   mutate(date = ymd(date)) %>%
+#   mutate(year = year(date),
+#          month = month(date),
+#          day = day(date),
+#          isMobile = ifelse(isMobile, 1L, 0L),
+#          isTrueDirect = ifelse(isMobile, 1L, 0L)) %>% 
+#   mutate_all(funs(ifelse(is.na(.), 0, .))) %>% 
+#   dplyr::select(-date) %>% 
+#   mutate_if(is.character, factor) %>% 
+#   mutate_if(is.factor, fct_lump, prop = 0.01)
+# 
+# glimpse(final)
+```
+
+```{r, fig.width=10}
+### Then here goes the final model
+# train.ind = sample(nrow(final), floor(0.7*nrow(final)), replace = F)
+# train = final[train.ind,] %>% select(-time_q1)
+# test = final[-train.ind,] %>% select(-time_q1)
+
+#### Use just.view to role out those just viewers and hope this will 
+#### help to increase the power of models
+#### We also use randomForest here since 
+#### as in the EDA we have already shown that some features have 
+#### huge amount of levels, therefore we choose randomForest which should
+#### be resistable to overfitting
+
+# table(transaction = final$transactionRevenue>0, just_view = final$just.view)
+# train.sub = train %>% filter(just.view == 0)
+# rf.sub = randomForest(transactionRevenue~., data = train.sub, ntree = 1000)
+# 
+# predict.revenue = rep(NA, nrow(test))
+# for(i in 1:nrow(test)){
+#   if(test$just.view[i] == 1){
+#     predict.revenue[i] = 0
+#   }
+#   else{
+#     predict.revenue[i] = predict(rf.sub, test[i,]) 
+#   }
+# }
+# mean((predict.revenue - test$transactionRevenue)^2)
+# 
+# data.frame(importance = rf.sub$importance[,1], feature = rownames(rf.sub$importance)) %>%
+#     arrange(desc(importance)) %>% ggplot(aes(x = reorder(feature, desc(importance)), y = importance)) + 
+#     geom_bar(stat = "identity", fill = "skyblue3") +
+#     xlab("Features") + ylab("Importance") + ggtitle("Feature Importance Plot") +
+#     theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+
+```
+
+
