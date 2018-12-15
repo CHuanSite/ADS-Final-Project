@@ -7,7 +7,11 @@ output: html_document
 
 ## Data exploration
 
-```{r}
+
+
+
+```{r, warning = FALSE, message = FALSE, tidy = TRUE}
+
 library(ggplot2)
 library(lubridate)
 library(usmap)
@@ -16,25 +20,43 @@ library(reshape)
 library(knitr)
 library(kableExtra)
 library(plotly)
-train = read.csv('/Users/alice/Documents/yr2term1/data science/project/Data/train_US_1year_nojson.csv')
+
+#train = read.csv('/Users/alice/Documents/yr2term1/data science/project/Data/train_US_1year_nojson.csv')
+
+train = read.csv('/Users/chenhuan/Downloads/Data-3/train_US_1year_nojson.csv')
+
 
 ```
 
 #### Check features with missing values 
-```{r}
+
+
+
+### change rev NA to  0 
+
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+
 train$totalTransactionRevenue[which(is.na(train$totalTransactionRevenue))] = 0
+
+## count missing values
 miss = data.frame(Features = colnames(train), Number = sapply(1:ncol(train), function(x) length(which(is.na(train[,x])))), Percent = round(sapply(1:ncol(train), function(x) length(which(is.na(train[,x]))))/nrow(train),2))
 
+
+## delete no missing variables 
 miss_bar = miss[(which(miss$Percent!=0)),]
+
+### plot missing percent hist
+
+miss_bar = miss[(which(miss$Percent!=0)),]
+
 plot_ly(miss_bar,y=~reorder(Features,-Percent),x=~Percent,type = 'bar',text = miss_bar$Percent,orientation = 'h')%>%
   layout(title = "Missing data",
          xaxis = list(title = "Percent"),
         yaxis = list(title = "Features"))
-# 
-# plot_ly(miss_bar,x=~reorder(Features,-Percent),y=~Percent,type = 'bar',text = miss_bar$Percent)%>%
-#   layout(title = "Missing data",
-#          yaxis = list(title = "Percent"),
-#          xaxis = list(title = "Features"))
+
+
+##Missing data summary table 
+
 
 miss %>%
   mutate_if(is.numeric, function(x) {
@@ -45,6 +67,7 @@ miss %>%
   kable(escape = F, align = "c",caption = "Missing data summary") %>%
   kable_styling(c("striped", "condensed"), full_width = F)
 
+## delete var with > 80% missing 
 dat = train[,which(miss$Percent<0.8)]
 
 # test_shiny = train[1:100,-c(32:35)]
@@ -59,14 +82,23 @@ We droped the features which have greater than 80% missing values.
 
 Here we explore the marketing channel grouping distribution. 
 
-```{r}
+
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+## count channelGrouping
+
 
 cg = data.frame(table(train$channelGrouping))
+
+## percent function 
 percent <- function(x, digits = 2, format = "f", ...) {
   paste0(formatC(100 * x, format = format, digits = digits, ...), "%")
 }
+
+## calculate percent 
 cg  = cg%>% 
   mutate(percent = percent(Freq/sum(Freq)))
+# rank by freq 
+cg = cg[order(-cg$Freq),]
 
 cg = cg[order(-cg$Freq),]
 
@@ -78,12 +110,24 @@ plot_ly(cg,x=~reorder(Var1,-Freq),y=~Freq,type = 'bar',text = cg$percent)%>%
 Over 40% of the visitors used organic search. 
 
 Here we explore the browser distribution. 
-```{r}
+
+
+## count browser
+
+
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+# keep top 10 browser 
 
 names(sort(table(train$browser),decreasing=TRUE)[1:10])
+
 train_brow = train[which(train$browser%in%names(sort(table(train$browser),decreasing=TRUE)[1:10])),]
 brow = data.frame(table(train_brow$browser))
+
+# delete freq = 0 rows 
 brow = brow[-which(brow$Freq==0),]
+## calculate percent 
+
+## calculate percent 
 brow  = brow%>% 
   mutate(percent = percent(Freq/sum(Freq)))
 
@@ -96,8 +140,9 @@ Most of the visitors used chrome browser. The most used browsers are chrome, saf
 
 Here we explore the device category distribution. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 dc = data.frame(table(train$deviceCategory))
+## calculate percent 
 dc  = dc%>% 
   mutate(percent = percent(Freq/sum(Freq)))
 
@@ -110,8 +155,10 @@ colnames(train)
 
 The most used device is desktop. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 IM = data.frame(table(train$isMobile))
+                
+## calculate percent 
 IM  = IM%>% 
   mutate(percent = percent(Freq/sum(Freq)))
 
@@ -125,10 +172,18 @@ plot_ly(IM,x=~reorder(Var1,-Freq),y=~Freq,type = 'bar',text = IM$percent)%>%
 
 Here we explore the device operating system. 
 
-```{r}
+
+
+# explore the device operating system
+
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+
 train_os = train[which(train$operatingSystem%in%names(sort(table(train$operatingSystem),decreasing=TRUE)[1:10])),]
 os = data.frame(table(train_os$operatingSystem))
+
+# delete 0 rows  
 os = os[-which(os$Freq==0),]
+## calculate percent 
 os  = os%>% 
   mutate(percent = percent(Freq/sum(Freq)))
 
@@ -143,10 +198,11 @@ Most of the visitors used Mac. The most used operating systems are Mac, Windows,
 
 Here we explore the device network domain. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 train_nd = train[which(train$networkDomain%in%names(sort(table(train$networkDomain),decreasing=TRUE)[1:10])),]
 networkDomain = data.frame(table(train_nd$networkDomain))
 networkDomain = networkDomain[-which(networkDomain$Freq==0),]
+## calculate percent 
 networkDomain  = networkDomain%>% 
   mutate(percent = percent(Freq/sum(Freq)))
 
@@ -160,10 +216,17 @@ The most used network domains are comcast, rr, verizon.
 
 Now we check these features correlation.
 
-```{r}
+
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+##  browser and operatingSystem correlation.
 ob = table(train$browser,train$operatingSystem)
+
+## delete 0 columns
 ob = ob[,which(colSums(ob)!=0)]
+## delete 0 rows
 ob = ob[which(rowSums(ob)!=0),]
+
+## change to long format
 ob = melt(ob)
 
 ggplot(ob, aes(Var.1,Var.2)) + geom_tile(aes(fill = value), colour = "white")+
@@ -178,10 +241,14 @@ ggplot(ob, aes(Var.1,Var.2)) + geom_tile(aes(fill = value), colour = "white")+
 The most frequent combiniation of the visits is using Chrome browser from Mac. 
 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 dd = table(train_brow$browser,train_brow$deviceCategory)
+
+## delete 0 columns
 dd = dd[,which(colSums(dd)!=0)]
+## delete 0 rows
 dd = dd[which(rowSums(dd)!=0),]
+## change to long format
 dd = melt(dd)
 
 ggplot(dd, aes(Var.2,Var.1)) + geom_tile(aes(fill = value), colour = "white")+
@@ -195,10 +262,13 @@ ggplot(dd, aes(Var.2,Var.1)) + geom_tile(aes(fill = value), colour = "white")+
 
 The most frequent combiniation of the visits is using Chrome browser on desktop. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 mc = table(train_brow$isMobile,train_brow$deviceCategory)
+## delete 0 columns
 mc = mc[,which(colSums(mc)!=0)]
+## delete 0 rows
 mc = mc[which(rowSums(mc)!=0),]
+## change to long format
 mc = melt(mc)
 
 ggplot(mc, aes(Var.1,Var.2)) + geom_tile(aes(fill = value), colour = "white")+
@@ -211,9 +281,13 @@ ggplot(mc, aes(Var.1,Var.2)) + geom_tile(aes(fill = value), colour = "white")+
 
 Now we explore geographical attributes of the visit. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 city = data.frame(table(train$city))
+
+## keep cities with have greater than average visits 
 city = city[city$Freq>mean(city$Freq),]
+
+## calculate percent 
 city = city%>% 
   mutate(percent = percent(Freq/sum(Freq)))
 
@@ -226,9 +300,12 @@ plot_ly(city,x=~reorder(Var1,-Freq),y=~Freq,type = 'bar',text = city$percent)%>%
 
 The most frequent city is Mountain View. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 reg = data.frame(table(train$region))
+
+## keep regions with have greater than average visits 
 reg = reg[reg$Freq>mean(reg$Freq),]
+## calculate percent 
 reg = reg%>% 
   mutate(percent = percent(Freq/sum(Freq)))
 
@@ -241,9 +318,11 @@ plot_ly(reg,x=~reorder(Var1,-Freq),y=~Freq,type = 'bar',text = reg$percent)%>%
 
 The most frequent region is California. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 metro = data.frame(table(train$metro))
+## keep metros with have greater than average visits 
 metro = metro[metro$Freq>mean(metro$Freq),]
+## calculate percent 
 metro = metro%>% 
   mutate(percent = percent(Freq/sum(Freq)))
 
@@ -256,7 +335,8 @@ plot_ly(metro,x=~reorder(Var1,-Freq),y=~Freq,type = 'bar',text = metro$percent)%
 The most frequent metros are San Francisco, New York, and Los Angeles. 
 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+
 # The revenue corresponds to the different states in USA
 l <- list(color = toRGB("white"), width = 2)
 g <- list(
@@ -265,17 +345,23 @@ g <- list(
   showlakes = TRUE,
   lakecolor = toRGB('white')
 )
+
+
+## count rev and visit in usa 
+
+
 map.visit <- dat %>%
   select(region,transactionRevenue) %>%
   group_by(region) %>%
   summarise(n = round(log(n()),3),rev = round(log(sum(as.numeric(na.omit(transactionRevenue)))+1),3)) %>%
   rename(full = region)
 
-
+## join maps table by full 
 state.google <- statepop %>%
   select(fips, abbr, full) %>%
   left_join(map.visit, by = "full")
 
+## change na to 0
 state.google$n[is.na(state.google$n)] = 0
 # state.google$hover <- with(state.google, paste('State: ',full, '<br>', "Revenue: ", n))
 state.google$hover <- with(state.google, paste(full))
@@ -294,7 +380,12 @@ plot_geo(state.google, locationmode = 'USA-states') %>%
 
 The state with the largest number of visit is California, and the state with the second largest visit is New York. 
 
-```{r}
+
+
+
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+
+## plot rev by state in map 
 
 plot_geo(state.google, locationmode = 'USA-states') %>%
   add_trace(
@@ -311,7 +402,11 @@ plot_geo(state.google, locationmode = 'USA-states') %>%
 Consistent with the number of visit, the state with the highest transaction revenue is California, and the state with the second highest transaction revenue is New York. 
 
 Now we show the distribution of visit per state, considering only visits with non-zero transactions. 
-```{r}
+
+
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+#considering only visits with non-zero transaction 
+
 map.visit2 <- dat %>%
   select(region,transactionRevenue) %>%
   filter(transactionRevenue>0)%>%
@@ -319,14 +414,18 @@ map.visit2 <- dat %>%
   summarise(n = round(log(n()),3),rev = round(log(sum(as.numeric(na.omit(transactionRevenue)))+1),3)) %>%
   rename(full = region)
 
+### join map data by full
 state.google2 <- statepop %>%
   select(fips, abbr, full) %>%
   left_join(map.visit2, by = "full")
 
+## delete revenue = 0 visits 
 state.google2$n[is.na(state.google2$n)] = 0
 
+## add hover info 
 state.google2$hover <- with(state.google2, paste(full))
 
+### plot visit per state with non-zero rev 
 plot_geo(state.google2, locationmode = 'USA-states') %>%
   add_trace(
     z = ~n, text = ~hover, locations = ~abbr,
@@ -343,16 +442,18 @@ plot_geo(state.google2, locationmode = 'USA-states') %>%
 The total numbers in each state are smaller, and the top 2 states with largest number of visits are California and New York. 
 
 #### Date and time 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+##### change format to data 
+
 dat = dat%>%
   mutate(date= ymd(date))
-
+## summarize revenue per day 
 date = dat%>%
   select(date,transactionRevenue) %>%
   group_by((date)) %>%
   summarise(n = round(log(n()),3),rev = round(log(sum(as.numeric(na.omit(transactionRevenue)))+1),3))
 colnames(date)[1] = 'Date'
-
+## add hover information 
 date$hover <- with(date, paste('Date: ',Date, '<br>', "Visits: ", n,'<br>','Revenue: ', rev))
 
 plot_ly(x = ~Date, y = ~rev, data = date, mode = 'lines', hoverinfo = 'text', text = date$hover)%>%
@@ -365,7 +466,9 @@ plot_ly(x = ~Date, y = ~rev, data = date, mode = 'lines', hoverinfo = 'text', te
 We plot the time series for transaction revenues. 
 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+## summarize revenue per year (2016,2017)
+
 year = dat%>%
   select(date,transactionRevenue) %>%
   group_by(year(date)) %>%
@@ -373,6 +476,7 @@ year = dat%>%
 
 colnames(year)[1] = 'Year'
 year$Year = as.character(year$Year)
+## plot visit number per year
 ggplot(year,aes(x = Year , y = n))+
   geom_bar(stat="identity",fill="#FF6666")+
   theme(plot.title = element_text(hjust = 0.5),
@@ -380,6 +484,7 @@ ggplot(year,aes(x = Year , y = n))+
           geom_text(aes(label=n ), vjust=0) +
     labs(title = "Visit per year (log scale)", x = 'Year', y = "Number")
 
+## plot revenue per year
 ggplot(year,aes(x = Year , y = rev))+
   geom_bar(stat="identity",fill="darkblue")+
   theme(plot.title = element_text(hjust = 0.5),
@@ -391,9 +496,10 @@ ggplot(year,aes(x = Year , y = rev))+
 For 2016 and 2017, the numbers of visit in each year are similar, as well as tansaction revenue. 
 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 mm <- c('January', 'February', 'March', 'April', 'May', 'June', 'July',
          'August', 'September', 'October', 'November', 'December')
+###############  summarize transaction revenue per month 
 month = dat%>%
   select(date,transactionRevenue) %>%
   group_by(month(date)) %>%
@@ -401,7 +507,7 @@ month = dat%>%
 month = data.frame(Month = mm,month)
 
 month$Month <- factor(month$Month, levels = month[['Month']])
-
+###### add hover information to plotly
 month$hover <- with(month, paste('Month: ',Month, '<br>', "Visits: ", n,'<br>','Revenue: ', rev))
 
 plot_ly(x = ~Month, y = ~rev, data = month,type = 'scatter', mode = 'lines', hoverinfo = 'text', text = month$hover)%>%
@@ -412,7 +518,10 @@ plot_ly(x = ~Month, y = ~rev, data = month,type = 'scatter', mode = 'lines', hov
 
 April has the highest revenue. 
 
-```{r}
+
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
+###############  summarize transaction revenue per weekday 
+
 week = dat%>%
   select(date,transactionRevenue) %>%
   group_by(weekdays(date)) %>%
@@ -420,13 +529,12 @@ week = dat%>%
 
 colnames(week)[1] = 'Week'
 
-# week$Week <- factor(week$Week, levels = week[['Week']])
-# # 
-# # 
 week$Week <- factor(week$Week, levels = c("Monday","Tuesday","Wednesday", "Thursday","Friday","Saturday","Sunday"))
 
+###### add hover information to plotly
 week$hover <- with(week, paste('Week: ',Week, '<br>', "Visits: ", n,'<br>','Revenue: ', rev))
 
+######## order by weekdays 
 order = c(2,6,7,5,1,3,4)
 week = week[order,]
 

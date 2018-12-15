@@ -15,6 +15,9 @@ library(MASS)
 library(glmnet)
 library(xgboost)
 library(keras)
+library(knitr)
+library(kableExtra)
+
 ```
 
 # Reading Data
@@ -50,8 +53,28 @@ m <- dat %>%
   data.table::as.data.table(keep.rownames=TRUE) %>% 
   set_names("Feature", "rho") %>% 
   arrange(-rho) 
+m$rho <- round(m$rho, 4)
+m <- m[-1, ]
 
-m
+m %>%
+  top_n(10) %>%
+  mutate_if(is.numeric, function(x) {
+    cell_spec(x, bold = T, 
+              color = spec_color(x, end = 0.9),
+              font_size = spec_font_size(abs(x)))
+  }) %>%
+  kable(escape = F, align = "c",caption = "Top 10 Feature Positive Correlation Table") %>%
+  kable_styling(c("striped", "condensed"), full_width = T)
+
+m %>%
+  top_n(-10) %>%
+  mutate_if(is.numeric, function(x) {
+    cell_spec(x, bold = T, 
+              color = spec_color(x, end = 0.9),
+              font_size = spec_font_size(abs(x)))
+  }) %>%
+  kable(escape = F, align = "c",caption = "Top 10 Feature Negative Correlation Table") %>%
+  kable_styling(c("striped", "condensed"), full_width = T)
 
 ```
 
@@ -116,29 +139,6 @@ print(paste0("The loss for the logistic + linear regression is ", round(loss.log
 
 ```
 
-# Using Decision Tree + Linear Regression 
-```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE, eval = FALSE}
-## Fit a logistic regression model to find out which customer buys items
-# trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
-model_tree <- train(factor(as.numeric(transactionRevenue > 0)) ~. , data = dat.train, method = "rf")
-predict.buy <- predict(model_tree, dat.test %>% dplyr::select(-transactionRevenue), type="response")
-
-## Fit linear regression model for the buy option data
-model_lm <- lm(log(1 + transactionRevenue) ~ . , data = as.data.frame(dat.train %>% filter(transactionRevenue > 0)))
-
-## The index which has predict.buy larger than 0.5 and the prediciton result
-index = which(predict.buy > 0.5)
-pred.res <- predict(model_lm, dat.test[index, ])
-predicition.index <- rep(0, nrow(dat.test))
-predicition.index[index] = pred.res
-
-## Loss for the linear regression 
-loss.logistic_lm <- sum((log(dat.test$transactionRevenue + 1) - predicition.index)^2) / length(predicition.index)
-
-print(paste0("The loss for the decision tree + linear regression is ", round(loss.logistic_lm,4) ))
-
-```
-
 
 # Using Keras Neural Network to do the prediciton
 ```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE, eval = TRUE}
@@ -177,7 +177,6 @@ history <- model_nn %>%
       batch_size = 4096, 
       verbose = 1, 
       validation_split = 0.2)
-
 plot(history)
 
 pred.res <- predict(model_nn, dat.keras.test.x)
@@ -268,9 +267,13 @@ loss <- c(loss.lm, loss.logistic_lm, loss.nn, loss.glmnet, loss.xgb)
 index <- c("lm", "logistic_lm","neural network", "glmnet", "xgb")
 loss.frame <- data.frame(loss, index)
 loss.frame %>% 
-  ggplot(aes(index, loss)) +
-  geom_bar(stat="identity")
-  
+  arrange(-loss) %>%
+  ggplot(aes(reorder(index,loss), loss, fill = index)) +
+  geom_bar(stat="identity") +
+  ggtitle("Testing Loss for Different Prediction Methods") + 
+  theme_gray(base_size = 10) + 
+  xlab("Prediction Method") + 
+  ylab("Loss")
 ```
 
 
