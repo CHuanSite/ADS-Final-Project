@@ -271,10 +271,9 @@ loss.frame %>%
   ggplot(aes(reorder(index,loss), loss, fill = index)) +
   geom_bar(stat="identity") +
   ggtitle("Testing Loss for Different Prediction Methods") + 
-  theme_gray(base_size = 20) + 
+  theme_gray(base_size = 10) + 
   xlab("Prediction Method") + 
   ylab("Loss")
-
 ```
 
 

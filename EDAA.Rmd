@@ -7,7 +7,7 @@ output: html_document
 
 ## Data exploration
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE}
 library(ggplot2)
 library(lubridate)
 library(usmap)
@@ -16,12 +16,12 @@ library(reshape)
 library(knitr)
 library(kableExtra)
 library(plotly)
-train = read.csv('/Users/alice/Documents/yr2term1/data science/project/Data/train_US_1year_nojson.csv')
+train = read.csv('/Users/chenhuan/Downloads/Data-3/train_US_1year_nojson.csv')
 
 ```
 
 #### Check features with missing values 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 train$totalTransactionRevenue[which(is.na(train$totalTransactionRevenue))] = 0
 miss = data.frame(Features = colnames(train), Number = sapply(1:ncol(train), function(x) length(which(is.na(train[,x])))), Percent = round(sapply(1:ncol(train), function(x) length(which(is.na(train[,x]))))/nrow(train),2))
 
@@ -59,7 +59,7 @@ We droped the features which have greater than 80% missing values.
 
 Here we explore the marketing channel grouping distribution. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 
 cg = data.frame(table(train$channelGrouping))
 percent <- function(x, digits = 2, format = "f", ...) {
@@ -78,7 +78,7 @@ plot_ly(cg,x=~reorder(Var1,-Freq),y=~Freq,type = 'bar',text = cg$percent)%>%
 Over 40% of the visitors used organic search. 
 
 Here we explore the browser distribution. 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 
 names(sort(table(train$browser),decreasing=TRUE)[1:10])
 train_brow = train[which(train$browser%in%names(sort(table(train$browser),decreasing=TRUE)[1:10])),]
@@ -96,7 +96,7 @@ Most of the visitors used chrome browser. The most used browsers are chrome, saf
 
 Here we explore the device category distribution. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 dc = data.frame(table(train$deviceCategory))
 dc  = dc%>% 
   mutate(percent = percent(Freq/sum(Freq)))
@@ -110,7 +110,7 @@ colnames(train)
 
 The most used device is desktop. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 IM = data.frame(table(train$isMobile))
 IM  = IM%>% 
   mutate(percent = percent(Freq/sum(Freq)))
@@ -125,7 +125,7 @@ plot_ly(IM,x=~reorder(Var1,-Freq),y=~Freq,type = 'bar',text = IM$percent)%>%
 
 Here we explore the device operating system. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 train_os = train[which(train$operatingSystem%in%names(sort(table(train$operatingSystem),decreasing=TRUE)[1:10])),]
 os = data.frame(table(train_os$operatingSystem))
 os = os[-which(os$Freq==0),]
@@ -143,7 +143,7 @@ Most of the visitors used Mac. The most used operating systems are Mac, Windows,
 
 Here we explore the device network domain. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 train_nd = train[which(train$networkDomain%in%names(sort(table(train$networkDomain),decreasing=TRUE)[1:10])),]
 networkDomain = data.frame(table(train_nd$networkDomain))
 networkDomain = networkDomain[-which(networkDomain$Freq==0),]
@@ -160,7 +160,7 @@ The most used network domains are comcast, rr, verizon.
 
 Now we check these features correlation.
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 ob = table(train$browser,train$operatingSystem)
 ob = ob[,which(colSums(ob)!=0)]
 ob = ob[which(rowSums(ob)!=0),]
@@ -178,7 +178,7 @@ ggplot(ob, aes(Var.1,Var.2)) + geom_tile(aes(fill = value), colour = "white")+
 The most frequent combiniation of the visits is using Chrome browser from Mac. 
 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 dd = table(train_brow$browser,train_brow$deviceCategory)
 dd = dd[,which(colSums(dd)!=0)]
 dd = dd[which(rowSums(dd)!=0),]
@@ -195,7 +195,7 @@ ggplot(dd, aes(Var.2,Var.1)) + geom_tile(aes(fill = value), colour = "white")+
 
 The most frequent combiniation of the visits is using Chrome browser on desktop. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 mc = table(train_brow$isMobile,train_brow$deviceCategory)
 mc = mc[,which(colSums(mc)!=0)]
 mc = mc[which(rowSums(mc)!=0),]
@@ -211,7 +211,7 @@ ggplot(mc, aes(Var.1,Var.2)) + geom_tile(aes(fill = value), colour = "white")+
 
 Now we explore geographical attributes of the visit. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 city = data.frame(table(train$city))
 city = city[city$Freq>mean(city$Freq),]
 city = city%>% 
@@ -226,7 +226,7 @@ plot_ly(city,x=~reorder(Var1,-Freq),y=~Freq,type = 'bar',text = city$percent)%>%
 
 The most frequent city is Mountain View. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 reg = data.frame(table(train$region))
 reg = reg[reg$Freq>mean(reg$Freq),]
 reg = reg%>% 
@@ -241,7 +241,7 @@ plot_ly(reg,x=~reorder(Var1,-Freq),y=~Freq,type = 'bar',text = reg$percent)%>%
 
 The most frequent region is California. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 metro = data.frame(table(train$metro))
 metro = metro[metro$Freq>mean(metro$Freq),]
 metro = metro%>% 
@@ -256,7 +256,7 @@ plot_ly(metro,x=~reorder(Var1,-Freq),y=~Freq,type = 'bar',text = metro$percent)%
 The most frequent metros are San Francisco, New York, and Los Angeles. 
 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 # The revenue corresponds to the different states in USA
 l <- list(color = toRGB("white"), width = 2)
 g <- list(
@@ -294,7 +294,7 @@ plot_geo(state.google, locationmode = 'USA-states') %>%
 
 The state with the largest number of visit is California, and the state with the second largest visit is New York. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 
 plot_geo(state.google, locationmode = 'USA-states') %>%
   add_trace(
@@ -311,7 +311,7 @@ plot_geo(state.google, locationmode = 'USA-states') %>%
 Consistent with the number of visit, the state with the highest transaction revenue is California, and the state with the second highest transaction revenue is New York. 
 
 Now we show the distribution of visit per state, considering only visits with non-zero transactions. 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 map.visit2 <- dat %>%
   select(region,transactionRevenue) %>%
   filter(transactionRevenue>0)%>%
@@ -343,7 +343,7 @@ plot_geo(state.google2, locationmode = 'USA-states') %>%
 The total numbers in each state are smaller, and the top 2 states with largest number of visits are California and New York. 
 
 #### Date and time 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 dat = dat%>%
   mutate(date= ymd(date))
 
@@ -365,7 +365,7 @@ plot_ly(x = ~Date, y = ~rev, data = date, mode = 'lines', hoverinfo = 'text', te
 We plot the time series for transaction revenues. 
 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 year = dat%>%
   select(date,transactionRevenue) %>%
   group_by(year(date)) %>%
@@ -391,7 +391,7 @@ ggplot(year,aes(x = Year , y = rev))+
 For 2016 and 2017, the numbers of visit in each year are similar, as well as tansaction revenue. 
 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 mm <- c('January', 'February', 'March', 'April', 'May', 'June', 'July',
          'August', 'September', 'October', 'November', 'December')
 month = dat%>%
@@ -412,7 +412,7 @@ plot_ly(x = ~Month, y = ~rev, data = month,type = 'scatter', mode = 'lines', hov
 
 April has the highest revenue. 
 
-```{r}
+```{r, warning = FALSE, message = FALSE, tidy = TRUE, cache = TRUE}
 week = dat%>%
   select(date,transactionRevenue) %>%
   group_by(weekdays(date)) %>%
